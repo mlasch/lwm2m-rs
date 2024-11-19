@@ -1,5 +1,6 @@
 use super::registration_request::Lwm2mVersion;
 use coap_lite::link_format::Unquote;
+use coap_lite::ResponseType;
 use coap_server::app::CoapError;
 
 // Based on https://www.openmobilealliance.org/release/LightweightM2M/V1_2-20201110-A/HTML-Version/OMA-TS-LightweightM2M_Core-V1_2-20201110-A.html#5-1-0-51-Attributes
@@ -38,7 +39,7 @@ impl Lwm2mAttribute {
                 .map(|parsed_value| Ok(Lwm2mAttribute::Lwm2mVersion(parsed_value)))
                 .unwrap_or_else(|_| {
                     Err(CoapError {
-                        code: Some(coap_lite::ResponseType::NotAcceptable),
+                        code: Some(ResponseType::NotAcceptable),
                         message: format!("LWM2M Version {} is not supported.", attr_value),
                     })
                 }),
@@ -64,11 +65,11 @@ impl Lwm2mAttribute {
             "hqmax" => parse_u64_attribute(attr, &attr_value, "Maximum Historical Queue"),
             "ct" => {
                 let ct = attr_value.parse::<usize>().map_err(|_| CoapError {
-                    code: Some(coap_lite::ResponseType::NotAcceptable),
+                    code: Some(ResponseType::NotAcceptable),
                     message: String::from("ct value should be an integer"),
                 })?;
                 let cf = coap_lite::ContentFormat::try_from(ct).map_err(|_| CoapError {
-                    code: Some(coap_lite::ResponseType::NotAcceptable),
+                    code: Some(ResponseType::NotAcceptable),
                     message: format!("ct value {} not recognized as content format", ct),
                 })?;
                 Ok(Lwm2mAttribute::ContentType(cf))
@@ -92,14 +93,14 @@ fn parse_f64_attribute(
                 _ => {
                     // Handle other cases here
                     Err(CoapError {
-                        code: Some(coap_lite::ResponseType::InternalServerError),
+                        code: Some(ResponseType::InternalServerError),
                         message: format!("Incorrect type (f64) used for parsing {}", attr_name),
                     })
                 }
             }
         }
         Err(_) => Err(CoapError {
-            code: Some(coap_lite::ResponseType::NotAcceptable),
+            code: Some(ResponseType::NotAcceptable),
             message: format!(
                 "{} valuetype should be f64, is {}",
                 error_message, attr_value
@@ -126,14 +127,14 @@ fn parse_u64_attribute(
                 _ => {
                     // Handle other cases here
                     Err(CoapError {
-                        code: Some(coap_lite::ResponseType::InternalServerError),
+                        code: Some(ResponseType::InternalServerError),
                         message: format!("Incorrect type (u64) used for parsing {}", attr_name),
                     })
                 }
             }
         }
         Err(_) => Err(CoapError {
-            code: Some(coap_lite::ResponseType::NotAcceptable),
+            code: Some(ResponseType::NotAcceptable),
             message: format!(
                 "{} valuetype should be u64, is {}",
                 error_message, attr_value
@@ -153,7 +154,7 @@ fn parse_bool_attribute(
             0 => Ok(false_variant),
             1 => Ok(true_variant),
             _ => Err(CoapError {
-                code: Some(coap_lite::ResponseType::NotAcceptable),
+                code: Some(ResponseType::NotAcceptable),
                 message: format!(
                     "{} parameter {} should be a 0 or 1",
                     error_message, attr_value
@@ -161,7 +162,7 @@ fn parse_bool_attribute(
             }),
         },
         Err(_) => Err(CoapError {
-            code: Some(coap_lite::ResponseType::NotAcceptable),
+            code: Some(ResponseType::NotAcceptable),
             message: format!(
                 "{} parameter {} should be a 0 or 1",
                 error_message, attr_value

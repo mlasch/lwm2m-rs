@@ -49,31 +49,33 @@ pub struct Lwm2mRegistrationRequest {
     #[serde(rename = "lwm2m")]
     pub version: Lwm2mVersion,
     #[serde(rename = "b")]
-    pub binding_mode: Lwm2mBindMode,
+    pub binding_mode: Option<Lwm2mBindMode>,
     #[serde(skip)]
     pub objects: Vec<Lwm2mRegistrationObject>,
 }
 
 impl Lwm2mRegistrationRequest {
     pub fn new(request: Request<SocketAddr>) -> Result<Self, CoapError> {
-        // Get the URL query parameters
-        let options = request
-            .original
-            .message
-            .get_first_option_as::<OptionValueString>(CoapOption::UriQuery)
-            .ok_or(CoapError {
-                code: Some(coap_lite::ResponseType::BadOption),
-                message: String::from("Missing all URL query parameters"),
-            })?;
 
-        // Try to read the options
-        let option = options.map_err(|_| CoapError {
-            code: Some(coap_lite::ResponseType::InternalServerError),
-            message: String::from("Failed to read options"),
-        })?;
+
+        // let options = request
+        //     .original
+        //     .message
+        //     .get_first_option_as::<OptionValueString>(CoapOption::UriQuery)
+        //     .ok_or(CoapError {
+        //         code: Some(coap_lite::ResponseType::BadOption),
+        //         message: String::from("Missing all URL query parameters"),
+        //     })?;
+        // println!("{:#?}", options);
+        //
+        // // Try to read the options
+        // let option = options.map_err(|_| CoapError {
+        //     code: Some(coap_lite::ResponseType::InternalServerError),
+        //     message: String::from("Failed to read options"),
+        // })?;
 
         let content_type = request.original.message.get_content_format();
-        let payload = request.original.message.payload;
+        let payload = request.original.message.payload.clone();
         let payload_str = str::from_utf8(&payload).map_err(|_| CoapError {
             code: Some(coap_lite::ResponseType::UnprocessableEntity),
             message: String::from("Unreadable utf8 content"),
@@ -99,10 +101,31 @@ impl Lwm2mRegistrationRequest {
                 });
             }
         };
+        // Get the URL query parameters
+
+        // let uri_query_list = request.original.message.get_options_as::<OptionValueString>(CoapOption::UriQuery).ok_or(CoapError {
+        //     code: Some(coap_lite::ResponseType::UnprocessableEntity),
+        //     message: String::from("Registration requires objects in payload"),
+        // });
+        let uri_query: String;
+        if let Some(uri_query_list) = request.original.message.get_option(CoapOption::UriQuery) {
+            uri_query = uri_query_list
+                .iter()
+                .map(|value| String::from_utf8_lossy(value))
+                .collect::<Vec<_>>()
+                .join("&");
+            println!("URI query: {}", uri_query);
+        } else {
+            return Err(CoapError {
+                code: Some(coap_lite::ResponseType::UnprocessableEntity),
+                message: String::from("No uri query option found"),
+            });
+        }
+
 
         // Deserialize the options into a request
         let mut regreq: Lwm2mRegistrationRequest =
-            from_str(option.0.as_str(), serde_querystring::ParseMode::UrlEncoded).map_err(
+            from_str(uri_query.as_str(), serde_querystring::ParseMode::UrlEncoded).map_err(
                 |err| CoapError {
                     code: Some(coap_lite::ResponseType::UnprocessableEntity),
                     message: format!("Incorrect URL query format: {}", err.message),
@@ -110,6 +133,7 @@ impl Lwm2mRegistrationRequest {
             )?;
 
         regreq.objects = parse_link_format(payload_str)?;
+
         Ok(regreq)
     }
 }
@@ -150,4 +174,20 @@ fn parse_attributes(
         object: object_name.to_owned(),
         attributes,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_query_string() {
+        let uri_query = "ep=test";
+        from_str(uri_query.as_str(), serde_querystring::ParseMode::UrlEncoded).map_err(
+            |err| CoapError {
+                code: Some(coap_lite::ResponseType::UnprocessableEntity),
+                message: format!("Incorrect URL query format: {}", err.message),
+            },
+        )?;
+    }
 }
